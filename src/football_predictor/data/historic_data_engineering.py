@@ -142,30 +142,48 @@ def find_resources_folder(start_path, target_folder='resources'):
             return None
         current_path = parent_path
 
-
+#TODO: THIS IS CALCED WRONG: home_team_away_goals_last_3
 def add_team_stats(df, team_col, stats_cols, window_sizes=[3, 5, 10]):
-    team_stats = df.groupby(['season', team_col])[stats_cols].rolling(window=max(window_sizes), min_periods=1).mean()
-    team_stats.reset_index(level=[0, 1], drop=True, inplace=True)
-
+    result_df = df.copy()
     for size in window_sizes:
         for col in stats_cols:
-            df[f'{team_col}_{col}_last_{size}'] = team_stats[col].rolling(window=size, min_periods=1).mean()
+            # Calculate rolling mean for this specific window size
+            rolling_stats = (df.groupby(['season', team_col])[col]
+                             .rolling(window=size, min_periods=1)
+                             .mean()
+                             .reset_index(level=[0, 1], drop=True))
 
-    return df
+            new_col = f'{team_col}_{col}_last_{size}'
+            result_df[new_col] = rolling_stats
+
+    return result_df
 
 
 def add_recent_form(df, team_col, result_col, window_sizes=[3, 5, 10]):
-    team_results = df.groupby(['season', team_col])[result_col].rolling(window=max(window_sizes), min_periods=1).mean()
-    team_results.reset_index(level=[0, 1], drop=True, inplace=True)
+    result_df = df.copy()
 
+    # For debugging
+    print(f"\nCalculating recent form for {team_col}")
+    print(f"Using result column: {result_col}")
+    print(f"Window sizes: {window_sizes}")
+
+    # Calculate rolling form for each window size directly
     for size in window_sizes:
-        df[f'{team_col}_form_last_{size}'] = team_results.rolling(window=size, min_periods=1).mean()
+        # Calculate rolling mean for this specific window size
+        rolling_form = (df.groupby(['season', team_col])[result_col]
+                        .rolling(window=size, min_periods=1)
+                        .mean()
+                        .reset_index(level=[0, 1], drop=True))
 
-    return df
+        # Add to result DataFrame with descriptive column name
+        new_col = f'{team_col}_form_last_{size}'
+        result_df[new_col] = rolling_form
+
+    return result_df
 
 
 def add_head_to_head_stats(df, home_col, away_col, stats_cols, window_sizes=[3, 5, 10]):
-    df['match_id'] = df['season'].astype(str) + '_' + df[home_col] + '_vs_' + df[away_col]
+    df['match_id'] = df[home_col] + '_vs_' + df[away_col]
     h2h_stats = df.groupby('match_id')[stats_cols].rolling(window=max(window_sizes), min_periods=1).mean()
     h2h_stats.reset_index(level=0, drop=True, inplace=True)
 
