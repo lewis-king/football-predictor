@@ -7,6 +7,55 @@ import aiohttp
 
 from understat import Understat
 
+def get_betting_suggestion(pred_supremacy, home_team, away_team):
+    """
+    Suggest a highly conservative betting market selection using Asian handicaps, including quarter handicaps.
+
+    :param pred_supremacy: The predicted supremacy value.
+    :param home_team: The name of the home team.
+    :param away_team: The name of the away team.
+    :return: A string suggesting the bet to place.
+    """
+    # Define thresholds for conservative suggestions with quarter handicaps
+    if pred_supremacy > 2.0:
+        # Strong home team superiority
+        return f"{home_team} -0.5 (Win or Asian Handicap)"
+    elif 1.75 < pred_supremacy <= 2.0:
+        # Moderate home team superiority
+        return f"{home_team} -0.25 (Asian Handicap)"
+    elif 1.5 < pred_supremacy <= 1.75:
+        # Slightly strong home team superiority
+        return f"{home_team} +0.5 (Double Chance)"
+    elif 1.25 < pred_supremacy <= 1.5:
+        # Slight home team superiority
+        return f"{home_team} +0.25 (Asian Handicap)"
+    elif 0.75 < pred_supremacy <= 1.25:
+        # Marginal home team superiority
+        return f"{home_team} +1.0 (Asian Handicap)"
+    elif 0.5 < pred_supremacy <= 0.75:
+        # Very marginal home team superiority
+        return f"{home_team} +1.25 (Asian Handicap)"
+    elif -0.5 <= pred_supremacy <= 0.5:
+        # Essentially even match
+        return "No Bet (Uncertain Supremacy)"
+    elif -0.75 <= pred_supremacy < -0.5:
+        # Very marginal away team superiority
+        return f"{away_team} +1.25 (Asian Handicap)"
+    elif -1.25 <= pred_supremacy < -0.75:
+        # Marginal away team superiority
+        return f"{away_team} +1.0 (Asian Handicap)"
+    elif -1.5 <= pred_supremacy < -1.25:
+        # Slight away team superiority
+        return f"{away_team} +0.25 (Asian Handicap)"
+    elif -1.75 <= pred_supremacy < -1.5:
+        # Slightly strong away team superiority
+        return f"{away_team} +0.5 (Double Chance)"
+    elif -2.0 <= pred_supremacy < -1.75:
+        # Moderate away team superiority
+        return f"{away_team} -0.25 (Asian Handicap)"
+    else:
+        # Strong away team superiority
+        return f"{away_team} -0.5 (Win or Asian Handicap)"
 
 async def predict_upcoming_games(model):
     async with aiohttp.ClientSession() as session:
@@ -33,16 +82,17 @@ async def predict_upcoming_games(model):
         predictions = model.predict(X_train_scaled)
 
         print("\n🎯 Upcoming Fixture Predictions")
-        print("=" * 100)
-        print(f"{'Date':<12} {'Home Team':<25} {'Away Team':<25} {'Pred Supremacy':>15} {'Prediction':>20}")
-        print("-" * 100)
+        print("=" * 120)
+        print(f"{'Date':<12} {'Home Team':<25} {'Away Team':<25} {'Pred Supremacy':>15} {'Betting Suggestion':>40}")
+        print("-" * 120)
 
         for i, (_, match) in enumerate(predictions_df.iterrows()):
             date_str = pd.to_datetime(match['datetime']).strftime('%Y-%m-%d')
             pred_supremacy = predictions[i][0]
+            betting_suggestion = get_betting_suggestion(pred_supremacy, match['home_team'], match['away_team'])
 
             print(f"{date_str:<12} {match['home_team']:<25} {match['away_team']:<25} "
-                  f"{pred_supremacy:>15.2f}")
+                  f"{pred_supremacy:>15.2f} {betting_suggestion:>40}")
 
 
 def build_features(next_gw):
