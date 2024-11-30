@@ -13,6 +13,7 @@ scikit-learn = "^1.4.0"
 tensorflow = "2.15.0"
 tensorflow-io-gcs-filesystem = "0.31.0"
 matplotlib = "^3.9.2"
+keras-tuner = "^1.4.7"
 
 
 [build-system]

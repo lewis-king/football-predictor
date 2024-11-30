@@ -9,53 +9,45 @@ from understat import Understat
 
 def get_betting_suggestion(pred_supremacy, home_team, away_team):
     """
-    Suggest a highly conservative betting market selection using Asian handicaps, including quarter handicaps.
+    Suggest a highly conservative betting market selection using only positive Asian handicaps
+    aligned with the supremacy direction.
 
     :param pred_supremacy: The predicted supremacy value.
     :param home_team: The name of the home team.
     :param away_team: The name of the away team.
     :return: A string suggesting the bet to place.
     """
-    # Define thresholds for conservative suggestions with quarter handicaps
+    # Define thresholds for conservative suggestions with positive handicaps only
     if pred_supremacy > 2.0:
-        # Strong home team superiority
-        return f"{home_team} -0.5 (Win or Asian Handicap)"
-    elif 1.75 < pred_supremacy <= 2.0:
-        # Moderate home team superiority
-        return f"{home_team} -0.25 (Asian Handicap)"
-    elif 1.5 < pred_supremacy <= 1.75:
-        # Slightly strong home team superiority
-        return f"{home_team} +0.5 (Double Chance)"
-    elif 1.25 < pred_supremacy <= 1.5:
-        # Slight home team superiority
+        # Very strong home team superiority
         return f"{home_team} +0.25 (Asian Handicap)"
-    elif 0.75 < pred_supremacy <= 1.25:
-        # Marginal home team superiority
+    elif 1.5 < pred_supremacy <= 2.0:
+        # Strong home team superiority
+        return f"{home_team} +0.5 (Asian Handicap)"
+    elif 1.0 < pred_supremacy <= 1.5:
+        # Moderate home team superiority
         return f"{home_team} +1.0 (Asian Handicap)"
-    elif 0.5 < pred_supremacy <= 0.75:
-        # Very marginal home team superiority
+    elif 0.5 < pred_supremacy <= 1.0:
+        # Slight home team superiority
         return f"{home_team} +1.25 (Asian Handicap)"
-    elif -0.5 <= pred_supremacy <= 0.5:
-        # Essentially even match
-        return "No Bet (Uncertain Supremacy)"
-    elif -0.75 <= pred_supremacy < -0.5:
+    elif 0.0 < pred_supremacy <= 0.5:
+        # Very marginal home team superiority
+        return f"{home_team} +1.5 (Asian Handicap)"
+    elif -0.5 <= pred_supremacy <= 0.0:
         # Very marginal away team superiority
-        return f"{away_team} +1.25 (Asian Handicap)"
-    elif -1.25 <= pred_supremacy < -0.75:
-        # Marginal away team superiority
-        return f"{away_team} +1.0 (Asian Handicap)"
-    elif -1.5 <= pred_supremacy < -1.25:
+        return f"{away_team} +1.5 (Asian Handicap)"
+    elif -1.0 <= pred_supremacy < -0.5:
         # Slight away team superiority
-        return f"{away_team} +0.25 (Asian Handicap)"
-    elif -1.75 <= pred_supremacy < -1.5:
-        # Slightly strong away team superiority
-        return f"{away_team} +0.5 (Double Chance)"
-    elif -2.0 <= pred_supremacy < -1.75:
+        return f"{away_team} +1.25 (Asian Handicap)"
+    elif -1.5 <= pred_supremacy < -1.0:
         # Moderate away team superiority
-        return f"{away_team} -0.25 (Asian Handicap)"
-    else:
+        return f"{away_team} +1.0 (Asian Handicap)"
+    elif -2.0 <= pred_supremacy < -1.5:
         # Strong away team superiority
-        return f"{away_team} -0.5 (Win or Asian Handicap)"
+        return f"{away_team} +0.5 (Asian Handicap)"
+    else:
+        # Very strong away team superiority
+        return f"{away_team} +0.25 (Asian Handicap)"
 
 async def predict_upcoming_games(model):
     async with aiohttp.ClientSession() as session:

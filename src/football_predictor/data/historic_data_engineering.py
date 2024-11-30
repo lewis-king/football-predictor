@@ -142,7 +142,6 @@ def find_resources_folder(start_path, target_folder='resources'):
             return None
         current_path = parent_path
 
-#TODO: THIS IS CALCED WRONG: home_team_away_goals_last_3
 def add_team_stats(df, team_col, stats_cols, window_sizes=[3, 5, 10]):
     result_df = df.copy()
     for size in window_sizes:
@@ -183,14 +182,25 @@ def add_recent_form(df, team_col, result_col, window_sizes=[3, 5, 10]):
 
 
 def add_head_to_head_stats(df, home_col, away_col, stats_cols, window_sizes=[3, 5, 10]):
-    df['match_id'] = df[home_col] + '_vs_' + df[away_col]
-    h2h_stats = df.groupby('match_id')[stats_cols].rolling(window=max(window_sizes), min_periods=1).mean()
-    h2h_stats.reset_index(level=0, drop=True, inplace=True)
+    # Exact fixture ID (home vs away), keep original match_id
+    df['exact_match_id'] = df[home_col] + '_vs_' + df[away_col]
+    df['match_id'] = df['exact_match_id'].copy()
 
+    # Two-way fixture ID (includes reverse fixtures)
+    df['h2h_match_id'] = df.apply(lambda x: '_vs_'.join(sorted([x[home_col], x[away_col]])), axis=1)
+
+    # Calculate stats for exact fixtures (remove the second rolling mean)
     for size in window_sizes:
         for col in stats_cols:
-            df[f'h2h_{col}_last_{size}'] = h2h_stats[col].rolling(window=size, min_periods=1).mean()
+            exact_stats = df.groupby('exact_match_id')[col].rolling(window=size, min_periods=1).mean()
+            exact_stats.reset_index(level=0, drop=True, inplace=True)
+            df[f'exact_fixture_{col}_last_{size}'] = exact_stats
 
+            h2h_stats = df.groupby('h2h_match_id')[col].rolling(window=size, min_periods=1).mean()
+            h2h_stats.reset_index(level=0, drop=True, inplace=True)
+            df[f'h2h_{col}_last_{size}'] = h2h_stats
+
+    df.drop(['exact_match_id', 'h2h_match_id'], axis=1, inplace=True)
     return df
 
 

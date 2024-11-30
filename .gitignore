@@ -1,2 +1,4 @@
 .idea/*
 /src/football_predictor/data/
+/src/football_predictor/model/keras_tuner/
+/src/football_predictor/model/best_model.h5
