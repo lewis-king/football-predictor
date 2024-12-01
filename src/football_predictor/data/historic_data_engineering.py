@@ -309,34 +309,77 @@ def calculate_elo_ratings(df, k_factor=20, home_advantage=100, use_xG=True, rese
 
 
 def add_xG_features(df):
-    home_goals_col = 'home_goals'
-    away_goals_col = 'away_goals'
-    home_xg_col = 'home_xG'
-    away_xg_col = 'away_xG'
+    # Basic xG derived features
+    df['home_xG_overperformance'] = df['home_goals'] - df['home_xG']
+    df['away_xG_overperformance'] = df['away_goals'] - df['away_xG']
 
-    df['home_xG_overperformance'] = df[home_goals_col] - df[home_xg_col]
-    df['away_xG_overperformance'] = df[away_goals_col] - df[away_xg_col]
-
-    df['home_xG_ratio'] = df[home_xg_col] / (df[home_xg_col] + df[away_xg_col])
-    df['away_xG_ratio'] = df[away_xg_col] / (df[home_xg_col] + df[away_xg_col])
+    # Handle potential division by zero in ratios by using fillna
+    df['home_xG_ratio'] = (df['home_xG'] / (df['home_xG'] + df['away_xG'])).fillna(0.5)  # 0.5 for equal chance when no data
+    df['away_xG_ratio'] = (df['away_xG'] / (df['home_xG'] + df['away_xG'])).fillna(0.5)
 
     window_sizes = [3, 5, 10]
     for size in window_sizes:
-        # Home team xG
-        df[f'home_xG_last_{size}'] = df.groupby(['season', 'home_team'])[home_xg_col].transform(
-            lambda x: x.rolling(window=size, min_periods=1).mean())
+        # Create a helper DataFrame for team performances
+        team_performances = []
 
-        # Away team xG
-        df[f'away_xG_last_{size}'] = df.groupby(['season', 'away_team'])[away_xg_col].transform(
-            lambda x: x.rolling(window=size, min_periods=1).mean())
+        # Add home game performances
+        home_perf = df[['season', 'datetime', 'home_team', 'home_xG', 'away_xG']].copy()
+        home_perf.columns = ['season', 'datetime', 'team', 'xG_for', 'xG_against']
+        team_performances.append(home_perf)
 
-        # Home team xG overperformance
-        df[f'home_xG_overperformance_last_{size}'] = df.groupby(['season', 'home_team'])[
-            'home_xG_overperformance'].transform(lambda x: x.rolling(window=size, min_periods=1).mean())
+        # Add away game performances
+        away_perf = df[['season', 'datetime', 'away_team', 'away_xG', 'home_xG']].copy()
+        away_perf.columns = ['season', 'datetime', 'team', 'xG_for', 'xG_against']
+        team_performances.append(away_perf)
 
-        # Away team xG overperformance
-        df[f'away_xG_overperformance_last_{size}'] = df.groupby(['season', 'away_team'])[
-            'away_xG_overperformance'].transform(lambda x: x.rolling(window=size, min_periods=1).mean())
+        # Combine all performances and sort
+        all_performances = pd.concat(team_performances).sort_values(['season', 'datetime'])
+
+        # Calculate rolling averages for each team
+        numeric_cols = ['xG_for', 'xG_against']
+        team_stats = all_performances.groupby(['season', 'team'])[numeric_cols].rolling(window=size, min_periods=1).mean()
+        team_stats = team_stats.reset_index()
+
+        # Shift values and fill NaN with team's mean or 0
+        for col in ['xG_for', 'xG_against']:
+            team_stats[col] = team_stats.groupby(['season', 'team'])[col].shift(1)
+            # Fill NaN with team's mean, if no mean available use overall mean, if still NaN use 0
+            team_stats[col] = team_stats[col].fillna(team_stats.groupby(['season', 'team'])[col].transform('mean'))
+            team_stats[col] = team_stats[col].fillna(team_stats[col].mean())
+            team_stats[col] = team_stats[col].fillna(0)
+
+        # Map stats back to home teams
+        home_merge = df.merge(
+            team_stats[['season', 'team', 'xG_for', 'xG_against']],
+            left_on=['season', 'home_team'],
+            right_on=['season', 'team'],
+            how='left'
+        )
+
+        df[f'home_team_overall_xG_last_{size}'] = home_merge['xG_for'].fillna(0)
+        df[f'home_team_xG_conceded_last_{size}'] = home_merge['xG_against'].fillna(0)
+
+        # Map stats back to away teams
+        away_merge = df.merge(
+            team_stats[['season', 'team', 'xG_for', 'xG_against']],
+            left_on=['season', 'away_team'],
+            right_on=['season', 'team'],
+            how='left'
+        )
+
+        df[f'away_team_overall_xG_last_{size}'] = away_merge['xG_for'].fillna(0)
+        df[f'away_team_xG_conceded_last_{size}'] = away_merge['xG_against'].fillna(0)
+
+        # Calculate venue-specific stats with NaN handling
+        home_only = df.groupby(['season', 'home_team'])['home_xG'].rolling(window=size, min_periods=1).mean()
+        home_only = home_only.fillna(method='bfill').fillna(0)  # backfill then fill remaining with 0
+        home_only.reset_index(level=[0, 1], drop=True, inplace=True)
+        df[f'home_team_home_xG_last_{size}'] = home_only
+
+        away_only = df.groupby(['season', 'away_team'])['away_xG'].rolling(window=size, min_periods=1).mean()
+        away_only = away_only.fillna(method='bfill').fillna(0)  # backfill then fill remaining with 0
+        away_only.reset_index(level=[0, 1], drop=True, inplace=True)
+        df[f'away_team_away_xG_last_{size}'] = away_only
 
     return df
 
