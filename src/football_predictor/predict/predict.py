@@ -92,51 +92,85 @@ def build_features(next_gw):
     hist_df = pd.read_csv('../data/output/engineered_football_data.csv')
     hist_df['datetime'] = pd.to_datetime(hist_df['datetime'])
 
-    # Take the last row as a template - it will have all our engineered features
-    template_row = hist_df.iloc[-1].copy()
+    # Initialize DataFrame for upcoming fixtures
+    upcoming_df = pd.DataFrame([{
+        'datetime': pd.to_datetime(match['datetime']),
+        'season': '2024',
+        'home_team': match['h']['title'],
+        'away_team': match['a']['title']
+    } for match in next_gw])
 
-    # Create DataFrame for upcoming fixtures using the template
-    upcoming_df = pd.DataFrame([template_row for _ in next_gw])
-    upcoming_df.reset_index(drop=True, inplace=True)
+    # Add time-based features
+    upcoming_df['day_of_week'] = upcoming_df['datetime'].dt.dayofweek.astype(int)
+    upcoming_df['month'] = upcoming_df['datetime'].dt.month.astype(int)
+    upcoming_df['is_weekend'] = upcoming_df['day_of_week'].isin([5, 6]).astype(int)
 
-    # Update basic info for each match
-    for idx, match in enumerate(next_gw):
-        upcoming_df.loc[idx, 'datetime'] = pd.to_datetime(match['datetime'])
-        upcoming_df['day_of_week'] = upcoming_df['datetime'].dt.dayofweek.astype(int)
-        upcoming_df['month'] = upcoming_df['datetime'].dt.month.astype(int)
-        upcoming_df['is_weekend'] = upcoming_df['day_of_week'].isin([5, 6]).astype(int)
-        upcoming_df.loc[idx, 'season'] = '2024'
-        upcoming_df.loc[idx, 'home_team'] = match['h']['title']
-        upcoming_df.loc[idx, 'away_team'] = match['a']['title']
+    # Group features by type
+    feature_groups = {
+        'team_specific': {
+            'home': [col for col in hist_df.columns if
+                     col.startswith('home_') and not col.endswith(('team', 'goals', 'xG'))],
+            'away': [col for col in hist_df.columns if
+                     col.startswith('away_') and not col.endswith(('team', 'goals', 'xG'))]
+        },
+        'elo': ['home_elo', 'away_elo'],
+        'position': ['home_position', 'away_position'],
+        'h2h': [col for col in hist_df.columns if col.startswith('h2h_')],
+        'exact_h2h': [col for col in hist_df.columns if col.startswith('exact_')]
+    }
 
-        # Get latest stats for home team
-        home_last = hist_df[hist_df['home_team'] == match['h']['title']].iloc[-1]
-        away_last = hist_df[hist_df['away_team'] == match['a']['title']].iloc[-1]
-        try:
-            h2h_last = hist_df[
-                (hist_df['home_team'] == match['h']['title']) &
-                (hist_df['away_team'] == match['a']['title'])
-                ].iloc[-1]
-        except IndexError:
-            # Define a DataFrame of zeros with the same columns as hist_df
-            h2h_last = pd.Series(0, index=hist_df.columns)
+    # Process each upcoming match
+    for idx, row in upcoming_df.iterrows():
+        # Get latest team data
+        home_last = hist_df[hist_df['home_team'] == row['home_team']].iloc[-1]
+        away_last = hist_df[hist_df['away_team'] == row['away_team']].iloc[-1]
 
-        # Update home team features
-        home_cols = [col for col in hist_df.columns if col.startswith('home_')]
-        for col in home_cols:
+        # Get h2h data
+        h2h_mask = (
+                ((hist_df['home_team'] == row['home_team']) & (hist_df['away_team'] == row['away_team'])) |
+                ((hist_df['home_team'] == row['away_team']) & (hist_df['away_team'] == row['home_team']))
+        )
+        h2h_matches = hist_df[h2h_mask]
+
+        exact_h2h_mask = (
+                (hist_df['home_team'] == row['home_team']) &
+                (hist_df['away_team'] == row['away_team'])
+        )
+        exact_h2h_matches = hist_df[exact_h2h_mask]
+
+        # Add team-specific features
+        for col in feature_groups['team_specific']['home']:
             upcoming_df.loc[idx, col] = home_last[col]
-
-        # Update away team features
-        away_cols = [col for col in hist_df.columns if col.startswith('away_')]
-        for col in away_cols:
+        for col in feature_groups['team_specific']['away']:
             upcoming_df.loc[idx, col] = away_last[col]
 
-        # Update h2h features
-        h2h_cols = [col for col in hist_df.columns if col.startswith('h2h_')]
-        for col in h2h_cols:
-            upcoming_df.loc[idx, col] = h2h_last[col]
+        # Add Elo and position features
+        for col in feature_groups['elo'] + feature_groups['position']:
+            if col.startswith('home_'):
+                upcoming_df.loc[idx, col] = home_last[col]
+            else:
+                upcoming_df.loc[idx, col] = away_last[col]
 
+        # Add h2h features
+        if len(h2h_matches) > 0:
+            for col in feature_groups['h2h']:
+                upcoming_df.loc[idx, col] = h2h_matches.iloc[-1][col]
+        else:
+            for col in feature_groups['h2h']:
+                upcoming_df.loc[idx, col] = 0
+
+        # Add exact h2h features
+        if len(exact_h2h_matches) > 0:
+            for col in feature_groups['exact_h2h']:
+                upcoming_df.loc[idx, col] = exact_h2h_matches.iloc[-1][col]
+        else:
+            for col in feature_groups['exact_h2h']:
+                upcoming_df.loc[idx, col] = 0
+
+        # Calculate derived features
         upcoming_df.loc[idx, 'elo_diff'] = upcoming_df.loc[idx, 'home_elo'] - upcoming_df.loc[idx, 'away_elo']
+        upcoming_df.loc[idx, 'position_diff'] = upcoming_df.loc[idx, 'away_position'] - upcoming_df.loc[
+            idx, 'home_position']
 
     return upcoming_df
 
