@@ -161,22 +161,60 @@ def add_team_stats(df, team_col, stats_cols, window_sizes=[3, 5, 10]):
 def add_recent_form(df, team_col, result_col, window_sizes=[3, 5, 10]):
     result_df = df.copy()
 
-    # For debugging
-    print(f"\nCalculating recent form for {team_col}")
-    print(f"Using result column: {result_col}")
-    print(f"Window sizes: {window_sizes}")
+    print(f"\nCalculating recent form for team: {team_col}")
 
-    # Calculate rolling form for each window size directly
     for size in window_sizes:
-        # Calculate rolling mean for this specific window size
-        rolling_form = (df.groupby(['season', team_col])[result_col]
-                        .rolling(window=size, min_periods=1)
-                        .mean()
-                        .reset_index(level=[0, 1], drop=True))
+        # Debugging: Print head of DataFrame
+        print("DataFrame head before filtering:")
+        print(df.head())
 
-        # Add to result DataFrame with descriptive column name
-        new_col = f'{team_col}_form_last_{size}'
-        result_df[new_col] = rolling_form
+        # Calculate form when this team plays at home
+        home_games = df[df['home_team'].isin(df[team_col])]
+        print(f"Home games for {team_col}: {len(home_games)} rows")
+
+        home_games_form = (
+            home_games.groupby(['season', 'home_team'])[result_col]
+            .rolling(window=size, min_periods=1)
+            .mean()
+            .reset_index(level=[0, 1], drop=True)
+        )
+
+        print("Indexes of df['away_team']:", df['away_team'].index)
+        print(f"Indexes of df[{team_col}]:", df[team_col].index)
+
+        # Calculate form when this team plays away
+        away_games = df[df['away_team'].isin(df[team_col])]
+        print(f"Away games for {team_col}: {len(away_games)} rows")
+
+        # Invert result_col for away games
+        away_games[result_col] = -away_games[result_col]
+
+        away_games_form = (
+            away_games.groupby(['season', 'away_team'])[result_col]
+            .rolling(window=size, min_periods=1)
+            .mean()
+            .reset_index(level=[0, 1], drop=True)
+        )
+
+        # Combine home and away games to calculate overall form
+        all_games = pd.concat([home_games, away_games]).sort_values(['season', 'datetime'])
+        print(f"Total games for {team_col}: {len(all_games)} rows")
+
+        # Map the forms back to the original DataFrame
+        home_form_series = pd.Series(index=df.index, dtype='float64')
+        away_form_series = pd.Series(index=df.index, dtype='float64')
+        overall_form_series = pd.Series(index=df.index, dtype='float64')
+
+        home_form_series.loc[home_games.index] = home_games_form
+        away_form_series.loc[away_games.index] = away_games_form
+
+        # Add all forms to the result DataFrame
+        result_df[f'{team_col}_home_form_last_{size}'] = home_form_series
+        result_df[f'{team_col}_away_form_last_{size}'] = away_form_series
+
+        print(f"Added columns for window size {size}")
+        print(f"Home form NaN count: {result_df[f'{team_col}_home_form_last_{size}'].isna().sum()}")
+        print(f"Away form NaN count: {result_df[f'{team_col}_away_form_last_{size}'].isna().sum()}")
 
     return result_df
 

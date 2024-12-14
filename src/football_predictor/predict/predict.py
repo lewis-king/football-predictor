@@ -62,10 +62,10 @@ async def predict_upcoming_games(model):
         feature_columns = predictions_df.columns.tolist()
         columns_to_drop = ['result', 'goal_diff', 'xG_diff', 'supremacy', 'home_xG_overperformance', 'away_xG_overperformance', 'home_xG_ratio', 'away_xG_ratio', 'datetime', 'season', 'home_team', 'away_team', 'match_id', 'home_goals', 'away_goals', 'home_xG', 'away_xG']
         feature_columns = [col for col in feature_columns if col not in columns_to_drop]
-        print("feature_columns:", feature_columns)
 
         # Prepare features for prediction
         sorted_predictions_df = predictions_df[features_order]
+        print("feature_columns:", sorted_predictions_df.columns)
         X_pred = sorted_predictions_df.values
         print("Predict shape")
         print(X_pred.shape)

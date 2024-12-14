@@ -15,6 +15,8 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 import matplotlib.pyplot as plt
 from tensorflow.python.keras import regularizers
 
+from football_predictor.data.features import features_order
+
 
 def prepare_data(df):
     print("Initial DataFrame shape:", df.shape)
@@ -28,9 +30,11 @@ def prepare_data(df):
                        'home_xG_overperformance', 'away_xG_overperformance', 'xG_diff',
                        'home_xG', 'away_xG', 'home_xG_ratio', 'away_xG_ratio']
     feature_columns = [col for col in feature_columns if col not in columns_to_drop]
-    print("feature_columns:", feature_columns)
+    sorted_df = df[features_order]
+    print("feature_columns:", sorted_df.columns)
+
     # Create feature matrix X and target variable y
-    X = df[feature_columns].copy()
+    X = sorted_df[feature_columns].copy()
     y = df['supremacy']  # supremacy as target
 
     # Print shapes before split
