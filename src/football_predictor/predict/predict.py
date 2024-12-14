@@ -7,6 +7,9 @@ import aiohttp
 
 from understat import Understat
 
+from football_predictor.data.features import features_order
+
+
 def get_betting_suggestion(pred_supremacy, home_team, away_team):
     """
     Suggest a highly conservative betting market selection using only positive Asian handicaps
@@ -62,7 +65,8 @@ async def predict_upcoming_games(model):
         print("feature_columns:", feature_columns)
 
         # Prepare features for prediction
-        X_pred = predictions_df[feature_columns].values
+        sorted_predictions_df = predictions_df[features_order]
+        X_pred = sorted_predictions_df.values
         print("Predict shape")
         print(X_pred.shape)
 
