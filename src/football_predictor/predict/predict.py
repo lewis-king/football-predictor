@@ -90,7 +90,6 @@ async def predict_upcoming_games(model):
             print(f"{date_str:<12} {match['home_team']:<25} {match['away_team']:<25} "
                   f"{pred_supremacy:>15.2f} {betting_suggestion:>40}")
 
-
 def build_features(next_gw):
     # Load historical data
     hist_df = pd.read_csv('../data/output/engineered_football_data.csv')
